@@ -42,6 +42,7 @@ export function EditPlay({ initial, theme, onChange, onAutosave }: Props) {
         theme={theme}
         lint-from="player"
         flat-files // gist filenames can't hold directories
+        lsp
       />
       <wgsl-play id="player" from="editor" theme={theme} resizable />
     </div>
