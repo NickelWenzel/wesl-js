@@ -1,5 +1,7 @@
 import { LanguageSupport, LRLanguage } from "@codemirror/language";
-import { type Diagnostic, linter } from "@codemirror/lint";
+import { type Diagnostic, forceLinting, linter } from "@codemirror/lint";
+import { StateEffect, type Transaction } from "@codemirror/state";
+import type { EditorView } from "@codemirror/view";
 import { parser, weslHighlighting } from "lezer-wesl";
 import {
   type BindResults,
@@ -57,9 +59,20 @@ export function wesl(): LanguageSupport {
   return new LanguageSupport(weslLanguage);
 }
 
+const refreshLint = StateEffect.define<null>();
+
 /** Create a linter that validates WESL using the canonical parser. */
 export function createWeslLinter(config: WeslLintConfig) {
-  return linter(async () => lintAndFetch(config), { delay: 300 });
+  const needsRefresh = (update: { transactions: readonly Transaction[] }) =>
+    update.transactions.some(tr => tr.effects.some(e => e.is(refreshLint)));
+  return linter(async () => lintAndFetch(config), { delay: 300, needsRefresh });
+}
+
+/** Re-lint now, e.g. because external diagnostics changed. (forceLinting
+ *  alone is a no-op unless an edit is already waiting to be linted.) */
+export function relint(view: EditorView): void {
+  view.dispatch({ effects: refreshLint.of(null) });
+  forceLinting(view);
 }
 
 /** Lint once, fetch missing externals if needed, re-lint with new libs. @internal */

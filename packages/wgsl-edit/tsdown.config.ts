@@ -27,13 +27,18 @@ export default defineConfig([
     logLevel: "warn",
   },
   {
-    entry: ["src/autosave.ts", "src/SaveMiddleware.ts", "src/SaveEndpoint.ts"],
+    entry: [
+      "src/autosave.ts",
+      "src/analyzer.ts",
+      "src/SaveMiddleware.ts",
+      "src/SaveEndpoint.ts",
+    ],
     target: "node22",
     clean: false,
     dts: true,
     platform: "node",
     format: ["esm"],
-    deps: { neverBundle: ["vite"], onlyBundle: false },
+    deps: { neverBundle: ["vite", "wgsl-analyzer-web"], onlyBundle: false },
     logLevel: "warn",
   },
 ]);

@@ -14,7 +14,7 @@ import {
   indentOnInput,
   syntaxHighlighting,
 } from "@codemirror/language";
-import { type Diagnostic, forceLinting, lintKeymap } from "@codemirror/lint";
+import { type Diagnostic, lintKeymap } from "@codemirror/lint";
 import { searchKeymap } from "@codemirror/search";
 import {
   Compartment,
@@ -23,6 +23,7 @@ import {
   type Extension,
   Text,
   Transaction,
+  type TransactionSpec,
 } from "@codemirror/state";
 import {
   crosshairCursor,
@@ -47,8 +48,10 @@ import {
   type WeslProject,
 } from "wesl";
 import { fetchPackagesByName } from "wesl-fetch";
-import { createWeslLinter, wesl } from "./Language.ts";
+import { createWeslLinter, relint, wesl } from "./Language.ts";
+import type { LspHost, LspSession } from "./Lsp.ts";
 import { saveEndpoint } from "./SaveEndpoint.ts";
+import { virtualPackages } from "./VirtualPackages.ts";
 import cssText from "./WgslEdit.css?inline";
 
 /** `autosave` CustomEvent detail: full project snapshot + dirty file names. */
@@ -66,6 +69,9 @@ export interface WgslEditAttrs {
   "lint-from"?: string;
   /** Reject file names containing '/' (for hosts with no directories). */
   "flat-files"?: boolean | string;
+  /** Run wgsl-analyzer as a language server; the value is the URL its assets
+   *  are served from (empty or `true`: `/wgsl-analyzer/`). */
+  lsp?: boolean | string;
 }
 
 type Theme = "light" | "dark" | "auto";
@@ -153,6 +159,7 @@ export class WgslEdit extends HTMLElement {
     "gpu-lint",
     "autosave",
     "flat-files",
+    "lsp",
   ];
 
   private editorView: EditorView | null = null;
@@ -163,6 +170,7 @@ export class WgslEdit extends HTMLElement {
   private themeCompartment = new Compartment();
   private lintCompartment = new Compartment();
   private lineNumbersCompartment = new Compartment();
+  private lspCompartment = new Compartment();
   private _pendingSource: string | null = null;
   private _theme: Theme = "auto";
   private _mediaQuery: MediaQueryList | null = null;
@@ -194,6 +202,9 @@ export class WgslEdit extends HTMLElement {
   /** Bound listeners for lint-from element's compile events. */
   private _boundCompileError = this.onCompileError.bind(this);
   private _boundCompileSuccess = this.onCompileSuccess.bind(this);
+  private _lsp: LspSession | null = null;
+  /** Base URL of the session starting or running, to ignore stale starts. */
+  private _lspUrl: string | null = null;
 
   constructor() {
     super();
@@ -218,12 +229,14 @@ export class WgslEdit extends HTMLElement {
     this.initEditor();
     this.loadInitialContent();
     this.observeVisibility();
+    this.updateLsp();
     const props = ["conditions", "source", "sources", "project", "autosave"];
     for (const p of props) upgradeProperty(this, p);
   }
 
   disconnectedCallback(): void {
     this.connectLintSource(null);
+    this.stopLsp();
     this._visibilityObserver?.disconnect();
     this._visibilityObserver = null;
     this.editorView?.destroy();
@@ -286,6 +299,9 @@ export class WgslEdit extends HTMLElement {
       case "flat-files":
         this._flatFiles = value !== null && value !== "false";
         break;
+      case "lsp":
+        this.updateLsp();
+        break;
     }
   }
 
@@ -315,6 +331,8 @@ export class WgslEdit extends HTMLElement {
     if (!this._activeFile && this._files.size === 0) {
       this._files.set("main.wesl", { doc: toDoc(value) });
       this._activeFile = "main.wesl";
+      this._lsp?.syncFiles();
+      this.refreshLsp();
       this.renderTabs();
     }
     if (this.editorView) {
@@ -352,6 +370,7 @@ export class WgslEdit extends HTMLElement {
     }
     const firstKey = Object.keys(value)[0];
     if (firstKey) this.switchToFile(toTabName(firstKey));
+    this._lsp?.syncFiles();
     this.renderTabs();
   }
 
@@ -565,6 +584,7 @@ export class WgslEdit extends HTMLElement {
   addFile(name: string, content = ""): void {
     if (this._files.has(name) || !this.allowsFileName(name)) return;
     this._files.set(name, { doc: toDoc(content) });
+    this._lsp?.syncFiles();
     this.switchToFile(name);
     this.renderTabs();
     this.dispatchFileChange("add", name);
@@ -578,6 +598,7 @@ export class WgslEdit extends HTMLElement {
       const firstFile = this._files.keys().next().value!;
       this.switchToFile(firstFile);
     }
+    this._lsp?.syncFiles();
     this.renderTabs();
     this.dispatchFileChange("remove", name);
   }
@@ -591,6 +612,8 @@ export class WgslEdit extends HTMLElement {
     this._files.delete(oldName);
     this._files.set(newName, state);
     if (this._activeFile === oldName) this._activeFile = newName;
+    this._lsp?.syncFiles();
+    this.refreshLsp();
     this.renderTabs();
     this.dispatchFileChange("rename", newName);
   }
@@ -604,12 +627,16 @@ export class WgslEdit extends HTMLElement {
   private switchToFile(name: string): void {
     if (!this._files.has(name) || name === this._activeFile) return;
     this.saveCurrentFileState();
+    this._lsp?.syncFiles();
     this._activeFile = name;
 
     const fileState = this._files.get(name)!;
     const view = this.editorView;
     if (view) {
-      const state = fileState.state ?? this.createFileState(fileState.doc);
+      const state = this.withLsp(
+        fileState.state ?? this.createFileState(fileState.doc, name),
+        name,
+      );
       fileState.state = state;
       view.setState(state);
       if (fileState.scrollPos != null) {
@@ -620,8 +647,18 @@ export class WgslEdit extends HTMLElement {
   }
 
   /** Build a fresh EditorState seeded with `doc` and the current extension set. */
-  private createFileState(doc: Text | string): EditorState {
-    return EditorState.create({ doc, extensions: this.buildExtensions() });
+  private createFileState(doc: Text | string, name: string): EditorState {
+    const extensions = this.buildExtensions(name);
+    return EditorState.create({ doc, extensions });
+  }
+
+  /** Point a tab's stored state at the current language server session.
+   *  States saved before the session started (or after it stopped) lag behind. */
+  private withLsp(state: EditorState, name: string): EditorState {
+    const ext = this.resolveLsp(name);
+    if (this.lspCompartment.get(state) === ext) return state;
+    return state.update({ effects: this.lspCompartment.reconfigure(ext) })
+      .state;
   }
 
   private saveCurrentFileState(): void {
@@ -733,7 +770,7 @@ export class WgslEdit extends HTMLElement {
       this._activeFile = "main.wesl";
     }
 
-    const state = this.createFileState(initialDoc);
+    const state = this.createFileState(initialDoc, this._activeFile);
     const active = this._activeFile ? this._files.get(this._activeFile) : null;
     if (active) {
       active.state = state;
@@ -757,7 +794,7 @@ export class WgslEdit extends HTMLElement {
   }
 
   /** Assemble the full CodeMirror extension set for a fresh EditorState. */
-  private buildExtensions(): Extension[] {
+  private buildExtensions(name: string): Extension[] {
     const baseTheme = EditorView.theme({
       ".cm-content": { padding: "0" },
       ".cm-line": { padding: "0" },
@@ -796,6 +833,7 @@ export class WgslEdit extends HTMLElement {
       this.readonlyCompartment.of(EditorState.readOnly.of(this.readonly)),
       this.lintCompartment.of(this.resolveLint()),
       this.lineNumbersCompartment.of(this.resolveLineNumbers()),
+      this.lspCompartment.of(this.resolveLsp(name)),
       EditorView.updateListener.of(update => {
         if (update.docChanged) {
           this._externalDiagnostics = [];
@@ -837,7 +875,10 @@ export class WgslEdit extends HTMLElement {
       rootModule: () => this.activeModulePath(),
       conditions: () => this._conditions,
       packageName: () => this._packageName,
-      getExternalDiagnostics: () => this._externalDiagnostics,
+      getExternalDiagnostics: () => [
+        ...this._externalDiagnostics,
+        ...(this._lsp?.diagnostics(this._activeFile) ?? []),
+      ],
       getLibs: () => this._libs,
       fetchLibs: this._fetchLibs
         ? pkgs => this.fetchLibsOnDemand(pkgs)
@@ -932,13 +973,98 @@ export class WgslEdit extends HTMLElement {
         const { severity, message } = loc;
         return { from, to, severity, message, source: "WebGPU" } as Diagnostic;
       });
-    if (this._externalDiagnostics.length) forceLinting(this.editorView);
+    if (this._externalDiagnostics.length) relint(this.editorView);
   }
 
   private onCompileSuccess(): void {
     if (this._externalDiagnostics.length === 0) return;
     this._externalDiagnostics = [];
-    if (this.editorView) forceLinting(this.editorView);
+    if (this.editorView) relint(this.editorView);
+  }
+
+  /** Start, restart or stop the language server to match the `lsp` attribute. */
+  private updateLsp(): void {
+    const url = this.getAttribute("lsp");
+    const wanted = this.editorView && url !== null && url !== "false";
+    if (wanted && url === this._lspUrl) return;
+    this.stopLsp();
+    if (wanted) this.startLsp(url);
+  }
+
+  private async startLsp(url: string): Promise<void> {
+    this._lspUrl = url;
+    try {
+      const { LspSession } = await import("./Lsp.ts");
+      // a bare attribute (`lsp`, or `lsp="true"` from JSX) means the default URL
+      const baseUrl = url && url !== "true" ? url : undefined;
+      const session = await LspSession.start(this.lspHost(), baseUrl);
+      if (this._lspUrl !== url) return session.dispose();
+      this._lsp = session;
+      this.refreshLsp();
+    } catch (e) {
+      if (this._lspUrl === url) this._lspUrl = null;
+      console.warn("wgsl-edit: language server unavailable:", e);
+    }
+  }
+
+  private stopLsp(): void {
+    this._lspUrl = null;
+    if (!this._lsp) return;
+    this._lsp.dispose();
+    this._lsp = null;
+    this.refreshLsp();
+    if (this.editorView) relint(this.editorView);
+  }
+
+  /** Attach the active tab to the current session, or detach it. */
+  private refreshLsp(): void {
+    const view = this.editorView;
+    const ext = this.resolveLsp(this._activeFile);
+    if (view && this.lspCompartment.get(view.state) !== ext) {
+      this.reconfigure(this.lspCompartment, ext);
+    }
+  }
+
+  private resolveLsp(name: string): Extension {
+    return this._lsp && name ? this._lsp.plugin(name) : [];
+  }
+
+  private lspHost(): LspHost {
+    return {
+      docs: () => new Map([...this._files].map(([n, f]) => [n, f.doc])),
+      view: () => this.editorView,
+      showFile: name => {
+        this.switchToFile(name);
+        return this._activeFile === name ? this.editorView : null;
+      },
+      updateFile: (name, spec) => this.updateFile(name, spec),
+      diagnosticsChanged: name => {
+        const view = this.editorView;
+        const linting = this._lint !== "off";
+        if (view && linting && name === this._activeFile) relint(view);
+      },
+      virtualPackages: () => {
+        const { weslSrc = {}, rootModuleName = "" } = this.linkParams();
+        const rootSource = weslSrc[rootModuleName] ?? "";
+        const names = this._ignorePackages;
+        return virtualPackages(names, rootSource, this._constants);
+      },
+    };
+  }
+
+  /** Apply a transaction to any tab, keeping inactive tabs' undo history. */
+  private updateFile(name: string, spec: TransactionSpec): void {
+    const fileState = this._files.get(name);
+    if (!fileState) return;
+    if (name === this._activeFile && this.editorView) {
+      this.editorView.dispatch(spec);
+      return;
+    }
+    const state = fileState.state ?? this.createFileState(fileState.doc, name);
+    fileState.state = state.update(spec).state;
+    fileState.doc = fileState.state.doc;
+    this._dirtyFiles.add(name);
+    this.dispatchChange();
   }
 
   private resolveLineNumbers(): Extension {

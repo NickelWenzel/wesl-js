@@ -76,6 +76,7 @@ editor.project = {                    // load a full project
 | `fetch-libs` | `true` `false` | `true` | Auto-fetch missing libraries from npm |
 | `shader-root` | string | - | Root path for shader imports |
 | `autosave` | `true` `false` | `false` | Persist edits to disk via dev server (use `wgsl-edit/autosave` plugin) |
+| `lsp` | URL | - | Run wgsl-analyzer from this URL (empty or `true`: `/wgsl-analyzer/`), see [Language server](#language-server) |
 
 ### Properties
 
@@ -165,6 +166,53 @@ editor.autosave = true;
 in the right file on disk. Production builds never include the middleware, so
 the same code is safe to ship.
 
+## Language server
+
+With `lsp` set, the editor runs
+[wgsl-analyzer](https://github.com/wgsl-analyzer/wgsl-analyzer) in a Web Worker
+via [wgsl-analyzer-web](https://www.npmjs.com/package/wgsl-analyzer-web):
+
+- completion, including symbols imported from other tabs (Ctrl+Space)
+- go to definition across tabs (F12)
+- format document (Shift+Alt+F)
+- type checking diagnostics, alongside the built-in WESL linting
+
+Hover, signature help, rename (F2) and find references (Shift+F12) are wired up
+too; they show results where wgsl-analyzer provides them.
+
+```html
+<wgsl-edit lsp></wgsl-edit>
+```
+
+The server needs two things from the host:
+
+- **Its assets**: `worker.js`, `wgsl_analyzer.js` and `wgsl_analyzer.wasm` from
+  `wgsl-analyzer-web/assets/`, in one directory under those names. The `lsp`
+  attribute gives its URL (default `/wgsl-analyzer/`).
+- **Cross-origin isolation**: the server uses `SharedArrayBuffer`, so pages must
+  be served with `Cross-Origin-Opener-Policy: same-origin` and
+  `Cross-Origin-Embedder-Policy: require-corp`. Without them the editor logs a
+  warning and works without the language server.
+
+With Vite, `wgslEditAnalyzer()` does both: it serves the assets in dev, emits
+them into builds, and sets the headers on the dev and preview servers. Your
+production host must send the headers itself.
+
+```typescript
+// vite.config.ts
+import wgslEditAnalyzer from "wgsl-edit/analyzer";
+
+export default {
+  plugins: [wgslEditAnalyzer()], // options: { base: "/wgsl-analyzer/", isolate: true }
+};
+```
+
+The server code (~5 MB, mostly wasm) loads only when `lsp` is set. Each
+`<wgsl-edit lsp>` starts its own server. The server also sees the packages
+linked in at runtime: `constants` (from `project.constants`) and wgsl-play's
+`env`, with `u` typed by the root module's `@uniforms` struct. Libraries fetched
+from npm are not visible to the server.
+
 ## Styling
 
 ```css
@@ -204,4 +252,5 @@ import "wgsl-edit";                              // auto-registers element
 import { WgslEdit } from "wgsl-edit/element";    // class only
 import { wesl, weslLanguage } from "wgsl-edit/language"; // CodeMirror language
 import "wgsl-edit/bundle";                       // pre-bundled, all deps included
+import wgslEditAnalyzer from "wgsl-edit/analyzer"; // Vite plugin for `lsp`
 ```

@@ -36,6 +36,10 @@
         "types": "./dist/autosave.d.ts",
         "import": "./dist/autosave.js"
       },
+      "./analyzer": {
+        "types": "./dist/analyzer.d.mts",
+        "import": "./dist/analyzer.mjs"
+      },
       "./bundle": {
         "types": "./dist/WgslEdit.d.ts",
         "import": "./dist/wgsl-edit.js"
@@ -52,6 +56,7 @@
     "./element": "./src/WgslEdit.ts",
     "./language": "./src/Language.ts",
     "./autosave": "./src/autosave.ts",
+    "./analyzer": "./src/analyzer.ts",
     "./jsx-preact": "./src/jsx-preact.ts",
     "./bundle": {
       "types": "./src/WgslEdit.ts",
@@ -59,10 +64,11 @@
     }
   },
   "dependencies": {
-    "@codemirror/autocomplete": "^6.0.0",
+    "@codemirror/autocomplete": "^6.20.0",
     "@codemirror/commands": "^6.0.0",
     "@codemirror/language": "^6.11.2",
     "@codemirror/lint": "^6.0.0",
+    "@codemirror/lsp-client": "^6.3.0",
     "@codemirror/search": "^6.0.0",
     "@codemirror/state": "^6.0.0",
     "@codemirror/view": "^6.0.0",
@@ -70,7 +76,8 @@
     "codemirror": "^6.0.0",
     "lezer-wesl": "workspace:*",
     "wesl": "workspace:*",
-    "wesl-fetch": "workspace:*"
+    "wesl-fetch": "workspace:*",
+    "wgsl-analyzer-web": "0.12.0-next.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.53.2",

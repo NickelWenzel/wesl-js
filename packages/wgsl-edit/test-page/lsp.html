@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>wgsl-edit lsp e2e test</title>
+  <style>
+    wgsl-edit { height: 200px; display: block; }
+  </style>
+</head>
+<body>
+  <wgsl-edit id="lsp-editor" lsp lint="on" gpu-lint="off">
+    <script type="text/wesl" data-name="main.wesl">
+import package::util::scale;
+
+fn main() -> f32 {
+  return scale(2.0);
+}
+    </script>
+    <script type="text/wesl" data-name="util.wesl">
+fn scale(value: f32) -> f32 {
+  return value * 2.0;
+}
+    </script>
+  </wgsl-edit>
+  <script type="module">import "../src/index.ts";</script>
+</body>
+</html>

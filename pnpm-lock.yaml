@@ -799,8 +799,8 @@ importers:
   packages/wgsl-edit:
     dependencies:
       '@codemirror/autocomplete':
-        specifier: ^6.0.0
-        version: 6.18.6
+        specifier: ^6.20.0
+        version: 6.20.3
       '@codemirror/commands':
         specifier: ^6.0.0
         version: 6.8.1
@@ -810,6 +810,9 @@ importers:
       '@codemirror/lint':
         specifier: ^6.0.0
         version: 6.8.5
+      '@codemirror/lsp-client':
+        specifier: ^6.3.0
+        version: 6.3.0
       '@codemirror/search':
         specifier: ^6.0.0
         version: 6.5.11
@@ -834,6 +837,9 @@ importers:
       wesl-fetch:
         specifier: workspace:*
         version: link:../wesl-fetch
+      wgsl-analyzer-web:
+        specifier: 0.12.0-next.0
+        version: 0.12.0-next.0
     devDependencies:
       '@playwright/test':
         specifier: ^1.53.2
@@ -1210,8 +1216,8 @@ packages:
   '@cloudflare/workers-types@4.20260617.1':
     resolution: {integrity: sha512-HdbP3CNcdMZBwegitFDjWvzv+6wPkFXvV9gBXMnf6RjV2Cy3W8TJL3IhSEGul0S6F1DHjnucP7lrpIsvkzNEjA==}
 
-  '@codemirror/autocomplete@6.18.6':
-    resolution: {integrity: sha512-PHHBXFomUs5DF+9tCOM/UoW6XQ4R44lLNNhRaW9PKPTU0D7lIjRg3ElxaJnTwsl/oHiR93WSXDBrekhoUGCPtg==}
+  '@codemirror/autocomplete@6.20.3':
+    resolution: {integrity: sha512-tlosUqb+3BbxCxZdu4tKeRghPFC+QM7q4X5YhKV2eCmPG+1r2F3f4AaSz5sCrFqUtX4Jh20VFTKecl16MgiV9g==}
 
   '@codemirror/commands@6.8.1':
     resolution: {integrity: sha512-KlGVYufHMQzxbdQONiLyGQDUW0itrLZwq3CcY7xpv9ZLRHqzkBSoteocBHtMCoY7/Ci4xhzSrToIeLg7FxHuaw==}
@@ -1221,6 +1227,9 @@ packages:
 
   '@codemirror/lint@6.8.5':
     resolution: {integrity: sha512-s3n3KisH7dx3vsoeGMxsbRAgKe4O1vbrnKBClm99PU0fWxmxsx5rR2PfqQgIt+2MMJBHbiJ5rfIdLYfB9NNvsA==}
+
+  '@codemirror/lsp-client@6.3.0':
+    resolution: {integrity: sha512-ZWtzuML77TnI2cXQrdLXb+HfJIldWPAeLZKRqct/Hq4RJUazg8Y0c9VqKyWDUsr1Y9TRefQKBWZ3B/eyVt1/Nw==}
 
   '@codemirror/search@6.5.11':
     resolution: {integrity: sha512-KmWepDE6jUdL6n8cAAqIpRmLPBZ5ZKnicE8oGU/s3QrAVID+0VhLFrzUucVKHG5035/BSykhExDL/Xm7dHthiA==}
@@ -4844,6 +4853,11 @@ packages:
     resolution: {integrity: sha512-a54IwgWPaeBCAAsv13YgmALOF1elABB08FxO9i+r4VFk5Vl4pKokRPeX8u5TCgSsPi6ec1otfLjdOpVcgbpshg==}
     hasBin: true
 
+  marked@15.0.12:
+    resolution: {integrity: sha512-8dD6FusOQSrpv9Z1rdNMdlSgQOIP880DHqnohobOmYLElGEqAL/JvxvuxZO16r4HtjTlfPRDC1hbvxC9dPN2nA==}
+    engines: {node: '>= 18'}
+    hasBin: true
+
   math-intrinsics@1.1.0:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
@@ -6154,6 +6168,16 @@ packages:
       jsdom:
         optional: true
 
+  vscode-jsonrpc@9.0.3:
+    resolution: {integrity: sha512-qETYf9PCl1lVfwR+oBmMfc4vP2nqLNA35ABxorw3j06+xlKRgDVxbLgKm4Y/xPL0YWdeDjLoI4ImICIT3nB0zQ==}
+    engines: {node: '>=14.0.0'}
+
+  vscode-languageserver-protocol@3.18.4:
+    resolution: {integrity: sha512-CCXbyr99dafRJzJH/0Ryk7ly5T8XPmSR0//OuF2w4m+9JiOin7zcAT5iET8GRE7Z9taFBejb3GbM0a0mbjdbrg==}
+
+  vscode-languageserver-types@3.18.4:
+    resolution: {integrity: sha512-nQsacoiijvl0fRf2q28uFDrAVwRhdCa3QveiF7/CX0r18mLR5FU/1WskSsCKOjmEbtteKUnY8x8Yzxop+k0zwg==}
+
   vscode-uri@3.1.0:
     resolution: {integrity: sha512-/BpdSx+yCQGnCvecbyXdxHDkuk55/G3xwnC0GqY4gmQ3j+A+g8kzzgB4Nk/SINjqn6+waqw3EgbVF2QKExkRxQ==}
 
@@ -6187,6 +6211,9 @@ packages:
     peerDependenciesMeta:
       webpack-cli:
         optional: true
+
+  wgsl-analyzer-web@0.12.0-next.0:
+    resolution: {integrity: sha512-JrqWXx/yDHKmBGLQQvJjDgBYeMens4CIOlpMC6H7zeIPJXwYlDb3F9Gei5pk9JwUQoGTnfch/9hxqc4fhF7iaw==}
 
   wgsl_reflect@1.2.1:
     resolution: {integrity: sha512-PY6MdLqLW1NFj/V6f5/9/Nb4ultwlAF7lCLyjKOAkdnlf7LlrGXNFXzHHEV7Okg1zy4C4TpBIcc/G3PXW4py8g==}
@@ -6569,7 +6596,7 @@ snapshots:
 
   '@cloudflare/workers-types@4.20260617.1': {}
 
-  '@codemirror/autocomplete@6.18.6':
+  '@codemirror/autocomplete@6.20.3':
     dependencies:
       '@codemirror/language': 6.11.2
       '@codemirror/state': 6.5.2
@@ -6597,6 +6624,17 @@ snapshots:
       '@codemirror/state': 6.5.2
       '@codemirror/view': 6.38.0
       crelt: 1.0.6
+
+  '@codemirror/lsp-client@6.3.0':
+    dependencies:
+      '@codemirror/autocomplete': 6.20.3
+      '@codemirror/language': 6.11.2
+      '@codemirror/lint': 6.8.5
+      '@codemirror/state': 6.5.2
+      '@codemirror/view': 6.38.0
+      '@lezer/highlight': 1.2.1
+      marked: 15.0.12
+      vscode-languageserver-protocol: 3.18.4
 
   '@codemirror/search@6.5.11':
     dependencies:
@@ -8566,7 +8604,7 @@ snapshots:
 
   codemirror@6.0.2:
     dependencies:
-      '@codemirror/autocomplete': 6.18.6
+      '@codemirror/autocomplete': 6.20.3
       '@codemirror/commands': 6.8.1
       '@codemirror/language': 6.11.2
       '@codemirror/lint': 6.8.5
@@ -9818,6 +9856,8 @@ snapshots:
       mdurl: 2.0.0
       punycode.js: 2.3.1
       uc.micro: 2.1.0
+
+  marked@15.0.12: {}
 
   math-intrinsics@1.1.0: {}
 
@@ -11325,6 +11365,15 @@ snapshots:
     transitivePeerDependencies:
       - msw
 
+  vscode-jsonrpc@9.0.3: {}
+
+  vscode-languageserver-protocol@3.18.4:
+    dependencies:
+      vscode-jsonrpc: 9.0.3
+      vscode-languageserver-types: 3.18.4
+
+  vscode-languageserver-types@3.18.4: {}
+
   vscode-uri@3.1.0: {}
 
   w3c-keyname@2.2.8: {}
@@ -11377,6 +11426,8 @@ snapshots:
       - '@swc/core'
       - esbuild
       - uglify-js
+
+  wgsl-analyzer-web@0.12.0-next.0: {}
 
   wgsl_reflect@1.2.1: {}
 
